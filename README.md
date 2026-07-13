@@ -113,7 +113,7 @@ The steps to apply Abyss etirely manually can be found the detailed [SETUP](SETU
 
 > Quick Preview: 
 > ```css
-> @import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');
+> @import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
 >```
 > Copy and Paste in the branding section in your jellyfin dashboard.
 
@@ -124,6 +124,30 @@ The steps to apply Abyss etirely manually can be found the detailed [SETUP](SETU
 
 If you use additional plugins, like *Jellyfin Enhanced*, *Media Bar Enhanced*, etc, then you can follow the [Plugin Support](SETUP.md) steps in the SETUP.md guide.
 
+### Abyss Customizer Add-on
+
+This fork includes an optional customizer layer for setups that use **JS Injector**, **Media Bar Enhanced**, **Home Screen Sections**, **Intro Skipper**, and related Jellyfin UI plugins.
+
+Add this to **Dashboard > General > Branding > Custom CSS**:
+
+```css
+@import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
+```
+
+`abyss.css` imports the local plugin/customizer styles automatically:
+
+- `styles/abyss-mbe.css`
+- `styles/abyss-customizer.css`
+- `jellyfin-icon-metadata` public icon styles
+
+Add this to **JS Injector**:
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/scripts/customizer/abyss-customizer.js"></script>
+```
+
+The CSS layer handles the visual treatment and static hide rules. The JavaScript layer creates the floating navigation, dynamic library menu, profile mirror, season dropdown, player-state fixes, and route-aware cleanup.
+
 <details>
 
 <summary><h2>Customisation</h2></summary>
@@ -131,7 +155,7 @@ If you use additional plugins, like *Jellyfin Enhanced*, *Media Bar Enhanced*, e
 Override any of these variables at the top of your **Custom CSS** field, after the `@import` line:
 
 ```css
-@import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');
+@import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
 
 :root {
     /* Accent colour: R, G, B only, no rgb() wrapper */
