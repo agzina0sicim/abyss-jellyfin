@@ -140,6 +140,7 @@ Add this to **Dashboard > General > Branding > Custom CSS**:
 2. `styles/abyss-mbe.css`
 3. `jellyfin-icon-metadata` public icon styles
 4. `styles/abyss-customizer.css`
+5. `styles/abyss-intro-skipper.css`
 
 The **JavaScript Code** field in JS Injector expects JavaScript, not an HTML
 `<script>` tag. Paste the contents of
@@ -168,6 +169,14 @@ Alternatively, paste the complete contents of
 the visual treatment and static hide rules. The JavaScript layer creates the
 floating navigation, dynamic library menu, profile mirror, season dropdown,
 player-state fixes, and route-aware cleanup.
+
+The Intro Skipper integration styles Jellyfin's native media-segment prompt,
+adds an optional four-second auto-skip countdown, and offers a short undo action
+after a manual or automatic skip. Auto-skip is disabled by default and stored
+locally per Jellyfin user. Jellyfin's own media-segment settings remain
+unchanged. Set Jellyfin's Intro action to **Ask to Skip** to use the Abyss
+countdown. With Jellyfin's **Skip** action, Jellyfin skips immediately and does
+not render a prompt for the theme to extend.
 
 <details>
 

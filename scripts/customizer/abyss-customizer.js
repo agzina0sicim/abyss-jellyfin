@@ -42,6 +42,7 @@
     "__jfTrailerButtonHideCleanup",
     "__jfShuffleButtonHideCleanup",
     "__jfWhoWatchingOnlinePrivacyCleanup",
+    "__jfAbyssIntroSkipperCleanup",
   ];
 
   CLEANUP_NAMES.forEach((name) => {
@@ -3726,4 +3727,660 @@
   window.__jfShuffleButtonHideCleanup = cleanup;
 
   handleNavigation();
+})();
+
+(function () {
+  "use strict";
+
+  const CLEANUP_NAME = "__jfAbyssIntroSkipperCleanup";
+  const SKIP_BUTTON_SELECTOR = ".skip-button";
+  const AUTO_SKIP_DELAY_MS = 4000;
+  const UNDO_TIMEOUT_MS = 7000;
+  const SEEK_DELTA_THRESHOLD_SECONDS = 2;
+
+  try {
+    window[CLEANUP_NAME]?.();
+  } catch {}
+
+  const state = {
+    destroyed: false,
+    initialized: false,
+    button: null,
+    container: null,
+    buttonObserver: null,
+    documentObserver: null,
+    syncFrame: 0,
+    countdownFrame: 0,
+    countdownStartedAt: 0,
+    promptVisible: false,
+    promptSignature: "",
+    introPrompt: false,
+    skipTriggered: false,
+    seekCheckToken: 0,
+    pendingTimers: new Set(),
+    undoSnapshot: null,
+    undoTimer: 0,
+    recoveryTimer: 0,
+    storageUserId: "",
+    autoSkipEnabled: false,
+  };
+
+  function normalizeText(value) {
+    return String(value || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  }
+
+  function getCurrentUserId() {
+    try {
+      return String(
+        window.ApiClient?.getCurrentUserId?.() ||
+          window.ApiClient?._serverInfo?.UserId ||
+          window.ApiClient?._currentUserId ||
+          "anonymous",
+      );
+    } catch {
+      return "anonymous";
+    }
+  }
+
+  function getStorageKey(userId = getCurrentUserId()) {
+    return `abyss:intro-auto-skip:${userId}`;
+  }
+
+  function loadAutoSkipPreference() {
+    const userId = getCurrentUserId();
+
+    if (state.storageUserId === userId) return state.autoSkipEnabled;
+
+    state.storageUserId = userId;
+
+    try {
+      state.autoSkipEnabled =
+        window.localStorage?.getItem(getStorageKey(userId)) === "1";
+    } catch {
+      state.autoSkipEnabled = false;
+    }
+
+    return state.autoSkipEnabled;
+  }
+
+  function saveAutoSkipPreference(enabled) {
+    state.autoSkipEnabled = Boolean(enabled);
+    state.storageUserId = getCurrentUserId();
+
+    try {
+      window.localStorage?.setItem(
+        getStorageKey(state.storageUserId),
+        state.autoSkipEnabled ? "1" : "0",
+      );
+    } catch {}
+  }
+
+  function scheduleTracked(callback, delay) {
+    const timer = window.setTimeout(() => {
+      state.pendingTimers.delete(timer);
+      callback();
+    }, delay);
+
+    state.pendingTimers.add(timer);
+    return timer;
+  }
+
+  function getNativePromptText(button) {
+    return normalizeText(
+      Array.from(button?.childNodes || [])
+        .map((node) => {
+          if (node.nodeType !== 1) return node.textContent || "";
+
+          if (
+            node.classList?.contains("jfIntroSkipCountdown") ||
+            node.classList?.contains("material-icons")
+          ) {
+            return "";
+          }
+
+          return node.textContent || "";
+        })
+        .join(" "),
+    );
+  }
+
+  function isIntroPromptText(text) {
+    return ["intro", "vorspann", "opening"].some((term) =>
+      text.includes(term),
+    );
+  }
+
+  function isPromptVisible(button) {
+    if (
+      !button?.isConnected ||
+      button.classList.contains("hide") ||
+      button.classList.contains("skip-button-hidden")
+    ) {
+      return false;
+    }
+
+    const style = getComputedStyle(button);
+    const rect = button.getBoundingClientRect();
+
+    return Boolean(
+      rect.width > 1 &&
+        rect.height > 1 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        style.opacity !== "0",
+    );
+  }
+
+  function getElementSignature(element, maxDepth = 10) {
+    const parts = [];
+    let current = element;
+
+    for (let depth = 0; depth < maxDepth && current; depth += 1) {
+      parts.push(current.id || "", current.className || "");
+      current = current.parentElement;
+    }
+
+    return normalizeText(parts.join(" "));
+  }
+
+  function getActivePlaybackVideo() {
+    const blockedTerms = [
+      "featurediframe",
+      "slides-container",
+      "media-bar",
+      "mediabar",
+      "hero",
+      "trailer",
+      "backdrop",
+    ];
+
+    return (
+      Array.from(document.querySelectorAll("video"))
+        .filter((video) => {
+          if (!video.isConnected || !Number.isFinite(video.currentTime)) {
+            return false;
+          }
+
+          const rect = video.getBoundingClientRect();
+          const style = getComputedStyle(video);
+          const signature = getElementSignature(video);
+
+          return Boolean(
+            rect.width >= 220 &&
+              rect.height >= 120 &&
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              style.opacity !== "0" &&
+              !blockedTerms.some((term) => signature.includes(term)),
+          );
+        })
+        .sort((left, right) => {
+          const leftRect = left.getBoundingClientRect();
+          const rightRect = right.getBoundingClientRect();
+          return rightRect.width * rightRect.height - leftRect.width * leftRect.height;
+        })[0] || null
+    );
+  }
+
+  function ensureCountdown(button) {
+    let countdown = button.querySelector(".jfIntroSkipCountdown");
+
+    if (countdown) return countdown;
+
+    countdown = document.createElement("span");
+    countdown.className = "jfIntroSkipCountdown";
+    countdown.setAttribute("aria-hidden", "true");
+
+    const value = document.createElement("span");
+    value.className = "jfIntroSkipCountdownValue";
+    value.textContent = String(Math.ceil(AUTO_SKIP_DELAY_MS / 1000));
+
+    countdown.appendChild(value);
+    button.insertBefore(countdown, button.firstChild);
+    button.classList.add("jf-intro-auto-counting");
+
+    return countdown;
+  }
+
+  function removeCountdown() {
+    state.button?.classList.remove("jf-intro-auto-counting");
+    state.button?.querySelector(".jfIntroSkipCountdown")?.remove();
+  }
+
+  function cancelCountdown() {
+    if (state.countdownFrame) {
+      window.cancelAnimationFrame(state.countdownFrame);
+      state.countdownFrame = 0;
+    }
+
+    state.countdownStartedAt = 0;
+    removeCountdown();
+  }
+
+  function hideUndo() {
+    if (state.undoTimer) {
+      window.clearTimeout(state.undoTimer);
+      state.undoTimer = 0;
+    }
+
+    state.undoSnapshot = null;
+    document.getElementById("jfIntroSkipUndo")?.classList.remove("is-visible");
+  }
+
+  function undoLastSkip() {
+    const snapshot = state.undoSnapshot;
+
+    if (!snapshot?.video?.isConnected) {
+      hideUndo();
+      return;
+    }
+
+    const currentSource = snapshot.video.currentSrc || snapshot.video.src || "";
+
+    if (snapshot.source && currentSource && snapshot.source !== currentSource) {
+      hideUndo();
+      return;
+    }
+
+    try {
+      snapshot.video.currentTime = Math.max(0, snapshot.time);
+
+      if (!snapshot.wasPaused) {
+        const playResult = snapshot.video.play();
+        playResult?.catch?.(() => {});
+      }
+    } catch {}
+
+    hideUndo();
+  }
+
+  function ensureUndoToast() {
+    let toast = document.getElementById("jfIntroSkipUndo");
+
+    if (toast) return toast;
+
+    toast = document.createElement("div");
+    toast.id = "jfIntroSkipUndo";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+
+    const message = document.createElement("span");
+    message.className = "jfIntroSkipUndoText";
+
+    const undoButton = document.createElement("button");
+    undoButton.type = "button";
+    undoButton.className = "jfIntroSkipUndoButton";
+    undoButton.title = "Überspringen rückgängig machen";
+    undoButton.setAttribute("aria-label", undoButton.title);
+
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "undo";
+
+    undoButton.appendChild(icon);
+    undoButton.addEventListener("click", undoLastSkip);
+    toast.append(message, undoButton);
+    document.body.appendChild(toast);
+
+    return toast;
+  }
+
+  function showUndo(snapshot) {
+    const toast = ensureUndoToast();
+    const message = toast.querySelector(".jfIntroSkipUndoText");
+
+    state.undoSnapshot = snapshot;
+
+    if (message) {
+      message.textContent = snapshot.isIntro
+        ? "Intro übersprungen"
+        : "Segment übersprungen";
+    }
+
+    toast.classList.add("is-visible");
+
+    if (state.undoTimer) window.clearTimeout(state.undoTimer);
+    state.undoTimer = window.setTimeout(hideUndo, UNDO_TIMEOUT_MS);
+  }
+
+  function watchForCompletedSeek(snapshot) {
+    const token = ++state.seekCheckToken;
+
+    [120, 360, 900].forEach((delay) => {
+      scheduleTracked(() => {
+        if (token !== state.seekCheckToken || !snapshot.video.isConnected) return;
+
+        const currentSource = snapshot.video.currentSrc || snapshot.video.src || "";
+        const delta = Math.abs(snapshot.video.currentTime - snapshot.time);
+
+        if (
+          snapshot.source &&
+          currentSource &&
+          snapshot.source !== currentSource
+        ) {
+          state.seekCheckToken += 1;
+          return;
+        }
+
+        if (delta >= SEEK_DELTA_THRESHOLD_SECONDS) {
+          state.seekCheckToken += 1;
+          showUndo(snapshot);
+        }
+      }, delay);
+    });
+  }
+
+  function handleSkipClickCapture() {
+    if (!state.button || !isPromptVisible(state.button)) return;
+
+    state.skipTriggered = true;
+    cancelCountdown();
+
+    const video = getActivePlaybackVideo();
+
+    if (!video) return;
+
+    watchForCompletedSeek({
+      video,
+      time: video.currentTime,
+      source: video.currentSrc || video.src || "",
+      wasPaused: video.paused,
+      isIntro: state.introPrompt,
+    });
+  }
+
+  function updateAutoSkipToggle(toggle) {
+    const enabled = loadAutoSkipPreference();
+    const title = enabled
+      ? "Automatisches Intro-Überspringen deaktivieren"
+      : "Automatisches Intro-Überspringen aktivieren";
+
+    toggle.setAttribute("aria-pressed", String(enabled));
+    toggle.setAttribute("aria-label", title);
+    toggle.title = title;
+  }
+
+  function handleAutoSkipToggle(event) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    saveAutoSkipPreference(!loadAutoSkipPreference());
+    state.skipTriggered = false;
+
+    const toggle = document.getElementById("jfIntroAutoSkipToggle");
+    if (toggle) updateAutoSkipToggle(toggle);
+
+    if (state.autoSkipEnabled && state.promptVisible && state.introPrompt) {
+      startCountdown();
+    } else {
+      cancelCountdown();
+    }
+  }
+
+  function ensureAutoSkipToggle(container) {
+    let toggle = document.getElementById("jfIntroAutoSkipToggle");
+
+    if (!toggle) {
+      toggle = document.createElement("button");
+      toggle.id = "jfIntroAutoSkipToggle";
+      toggle.type = "button";
+      toggle.className = "jfIntroAutoSkipToggle";
+
+      const icon = document.createElement("span");
+      icon.className = "material-icons";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = "fast_forward";
+
+      toggle.appendChild(icon);
+      toggle.addEventListener("click", handleAutoSkipToggle);
+    }
+
+    if (toggle.parentElement !== container) container.appendChild(toggle);
+
+    updateAutoSkipToggle(toggle);
+    return toggle;
+  }
+
+  function startCountdown() {
+    if (
+      state.destroyed ||
+      state.countdownFrame ||
+      state.skipTriggered ||
+      !state.button ||
+      !state.promptVisible ||
+      !state.introPrompt ||
+      !loadAutoSkipPreference()
+    ) {
+      return;
+    }
+
+    state.countdownStartedAt = performance.now();
+    ensureCountdown(state.button);
+
+    const update = (now) => {
+      if (
+        state.destroyed ||
+        !state.button ||
+        !state.promptVisible ||
+        !state.introPrompt ||
+        state.skipTriggered ||
+        !loadAutoSkipPreference() ||
+        !isPromptVisible(state.button)
+      ) {
+        cancelCountdown();
+        return;
+      }
+
+      const elapsed = Math.max(0, now - state.countdownStartedAt);
+      const progress = Math.min(1, elapsed / AUTO_SKIP_DELAY_MS);
+      const remaining = Math.max(0, AUTO_SKIP_DELAY_MS - elapsed);
+      const countdown = ensureCountdown(state.button);
+      const value = countdown.querySelector(".jfIntroSkipCountdownValue");
+
+      countdown.style.setProperty(
+        "--jf-intro-skip-progress",
+        String(progress),
+      );
+
+      if (value) {
+        value.textContent = String(Math.max(1, Math.ceil(remaining / 1000)));
+      }
+
+      if (progress >= 1) {
+        state.countdownFrame = 0;
+        state.skipTriggered = true;
+        removeCountdown();
+        state.button.click();
+        return;
+      }
+
+      state.countdownFrame = window.requestAnimationFrame(update);
+    };
+
+    state.countdownFrame = window.requestAnimationFrame(update);
+  }
+
+  function detachSkipButton() {
+    if (state.buttonObserver) {
+      state.buttonObserver.disconnect();
+      state.buttonObserver = null;
+    }
+
+    cancelCountdown();
+
+    const container =
+      state.container || state.button?.closest(".skip-button-container");
+
+    if (state.button) {
+      state.button.removeEventListener("click", handleSkipClickCapture, true);
+      state.button.classList.remove(
+        "jf-abyss-skip-button",
+        "jf-intro-auto-counting",
+      );
+    }
+
+    container?.classList.remove("jf-abyss-skip-active");
+    container?.querySelector("#jfIntroAutoSkipToggle")?.remove();
+    document.getElementById("jfIntroAutoSkipToggle")?.remove();
+
+    state.button = null;
+    state.container = null;
+    state.promptVisible = false;
+    state.promptSignature = "";
+    state.introPrompt = false;
+    state.skipTriggered = false;
+  }
+
+  function attachSkipButton(button) {
+    if (state.button === button) return;
+
+    detachSkipButton();
+
+    if (!button) return;
+
+    state.button = button;
+    state.button.addEventListener("click", handleSkipClickCapture, true);
+
+    state.buttonObserver = new MutationObserver(scheduleSync);
+    state.buttonObserver.observe(state.button, {
+      attributes: true,
+      attributeFilter: ["class"],
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  function syncIntegration() {
+    if (state.destroyed) return;
+
+    const button = document.querySelector(SKIP_BUTTON_SELECTOR);
+
+    if (button !== state.button) attachSkipButton(button);
+    if (!state.button) return;
+
+    const text = getNativePromptText(state.button);
+
+    if (text !== state.promptSignature) {
+      state.promptSignature = text;
+      state.skipTriggered = false;
+      cancelCountdown();
+    }
+
+    const wasVisible = state.promptVisible;
+    state.introPrompt = isIntroPromptText(text);
+    state.promptVisible = isPromptVisible(state.button);
+
+    if (wasVisible && !state.promptVisible) {
+      state.skipTriggered = false;
+      cancelCountdown();
+    }
+
+    state.button.classList.add("jf-abyss-skip-button");
+
+    const container = state.button.closest(".skip-button-container");
+
+    if (!container) return;
+
+    state.container = container;
+
+    container.classList.toggle("jf-abyss-skip-active", state.promptVisible);
+
+    const toggle = ensureAutoSkipToggle(container);
+    toggle.classList.toggle(
+      "is-hidden",
+      !state.promptVisible || !state.introPrompt,
+    );
+
+    if (
+      state.promptVisible &&
+      state.introPrompt &&
+      loadAutoSkipPreference() &&
+      !state.skipTriggered
+    ) {
+      startCountdown();
+    } else {
+      cancelCountdown();
+    }
+  }
+
+  function scheduleSync() {
+    if (state.destroyed || state.syncFrame) return;
+
+    state.syncFrame = window.requestAnimationFrame(() => {
+      state.syncFrame = 0;
+      syncIntegration();
+    });
+  }
+
+  function handleDocumentMutations(mutations) {
+    if (!state.button?.isConnected) {
+      scheduleSync();
+      return;
+    }
+
+    const hasSkipButtonChange = mutations.some((mutation) => {
+      return [...mutation.addedNodes, ...mutation.removedNodes].some((node) => {
+        if (node.nodeType !== 1) return false;
+        return Boolean(
+          node.matches?.(SKIP_BUTTON_SELECTOR) ||
+            node.querySelector?.(SKIP_BUTTON_SELECTOR),
+        );
+      });
+    });
+
+    if (hasSkipButtonChange) scheduleSync();
+  }
+
+  function initialize() {
+    if (state.initialized || state.destroyed) return;
+
+    state.initialized = true;
+    state.documentObserver = new MutationObserver(handleDocumentMutations);
+    state.documentObserver.observe(document.body || document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    window.addEventListener("pageshow", scheduleSync);
+    document.addEventListener("viewshow", scheduleSync);
+    state.recoveryTimer = window.setInterval(scheduleSync, 1250);
+    scheduleSync();
+  }
+
+  function cleanup() {
+    if (state.destroyed) return;
+
+    state.destroyed = true;
+
+    if (state.syncFrame) window.cancelAnimationFrame(state.syncFrame);
+    if (state.recoveryTimer) window.clearInterval(state.recoveryTimer);
+    if (state.undoTimer) window.clearTimeout(state.undoTimer);
+
+    state.pendingTimers.forEach((timer) => window.clearTimeout(timer));
+    state.pendingTimers.clear();
+    state.documentObserver?.disconnect();
+
+    window.removeEventListener("pageshow", scheduleSync);
+    document.removeEventListener("viewshow", scheduleSync);
+    document.removeEventListener("DOMContentLoaded", initialize);
+
+    detachSkipButton();
+    document.getElementById("jfIntroSkipUndo")?.remove();
+
+    if (window[CLEANUP_NAME] === cleanup) {
+      window[CLEANUP_NAME] = undefined;
+    }
+  }
+
+  window[CLEANUP_NAME] = cleanup;
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize, { once: true });
+  } else {
+    initialize();
+  }
 })();
