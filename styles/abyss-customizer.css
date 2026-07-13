@@ -1,7 +1,4 @@
-﻿
-/* Abyss customizer/plugin layer.
-   Source: CSS.txt branding rules, with upstream theme imports removed.
-   Loaded by abyss.css after the base theme and Media Bar Enhanced styles. */
+/* Refactored/optimized version: keeps the original visual design and selectors. */
 
 /* ================================================= */
 /* DESIGN TOKENS                                     */
@@ -539,16 +536,16 @@ html.jf-search-page .jf-search-people-hide-hard {
     .headerCastButton,
     button[title="Back"],
     button[aria-label="Back"],
-    button[title="ZurÃ¼ck"],
-    button[aria-label="ZurÃ¼ck"],
+    button[title="Zurück"],
+    button[aria-label="Zurück"],
     button[title="Home"],
     button[aria-label="Home"],
     button[title="Startseite"],
     button[aria-label="Startseite"],
     button[title="Menu"],
     button[aria-label="Menu"],
-    button[title="MenÃ¼"],
-    button[aria-label="MenÃ¼"],
+    button[title="Menü"],
+    button[aria-label="Menü"],
     button[title="Search"],
     button[aria-label="Search"],
     button[title="Suche"],

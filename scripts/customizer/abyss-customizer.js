@@ -1,8 +1,6 @@
 (function () {
   "use strict";
 
-  /* Abyss companion customizer for JS Injector. */
-
   /* Refactored/optimized version: keeps the original behavior and includes the Hero Banner trailer guard. */
 
   /*

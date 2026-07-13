@@ -124,9 +124,9 @@ The steps to apply Abyss etirely manually can be found the detailed [SETUP](SETU
 
 If you use additional plugins, like *Jellyfin Enhanced*, *Media Bar Enhanced*, etc, then you can follow the [Plugin Support](SETUP.md) steps in the SETUP.md guide.
 
-### Abyss Customizer Add-on
+### Abyss Customizer Integration
 
-This fork includes an optional customizer layer for setups that use **JS Injector**, **Media Bar Enhanced**, **Home Screen Sections**, **Intro Skipper**, and related Jellyfin UI plugins.
+This fork includes the customizer layer for setups that use **JS Injector**, **Media Bar Enhanced**, **Home Screen Sections**, **Intro Skipper**, and related Jellyfin UI plugins.
 
 Add this to **Dashboard > General > Branding > Custom CSS**:
 
@@ -134,19 +134,40 @@ Add this to **Dashboard > General > Branding > Custom CSS**:
 @import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
 ```
 
-`abyss.css` imports the local plugin/customizer styles automatically:
+`abyss.css` preserves the same cascade as the previous standalone branding CSS:
 
-- `styles/abyss-mbe.css`
-- `styles/abyss-customizer.css`
-- `jellyfin-icon-metadata` public icon styles
+1. `styles/abyss-base.css`
+2. `styles/abyss-mbe.css`
+3. `jellyfin-icon-metadata` public icon styles
+4. `styles/abyss-customizer.css`
 
-Add this to **JS Injector**:
+The **JavaScript Code** field in JS Injector expects JavaScript, not an HTML
+`<script>` tag. Paste the contents of
+`scripts/customizer/abyss-customizer-loader.js`, or use this loader directly:
 
-```html
-<script src="https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/scripts/customizer/abyss-customizer.js"></script>
+```js
+(function () {
+  "use strict";
+
+  const scriptId = "abyss-customizer-script";
+
+  if (document.getElementById(scriptId)) return;
+
+  const script = document.createElement("script");
+  script.id = scriptId;
+  script.src =
+    "https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/scripts/customizer/abyss-customizer.js";
+  script.async = false;
+
+  document.head.appendChild(script);
+})();
 ```
 
-The CSS layer handles the visual treatment and static hide rules. The JavaScript layer creates the floating navigation, dynamic library menu, profile mirror, season dropdown, player-state fixes, and route-aware cleanup.
+Alternatively, paste the complete contents of
+`scripts/customizer/abyss-customizer.js` into JS Injector. The CSS layer handles
+the visual treatment and static hide rules. The JavaScript layer creates the
+floating navigation, dynamic library menu, profile mirror, season dropdown,
+player-state fixes, and route-aware cleanup.
 
 <details>
 
