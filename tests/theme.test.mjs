@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const theme = await readFile(new URL('../abyss.css', import.meta.url), 'utf8');
+const theme = await readFile(new URL('../styles/abyss-base.css', import.meta.url), 'utf8');
 const lite = await readFile(new URL('../styles/abyss-lite.css', import.meta.url), 'utf8');
 
 test('global inherited properties do not match every element', () => {

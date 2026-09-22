@@ -1,0 +1,266 @@
+/* Abyss integration for Jellyfin media-segment prompts and Intro Skipper. */
+
+:root {
+  --jf-intro-skip-bg: rgba(20, 24, 28, 0.82);
+  --jf-intro-skip-bg-hover: rgba(28, 33, 38, 0.94);
+  --jf-intro-skip-border: rgba(255, 255, 255, 0.16);
+  --jf-intro-skip-muted: rgba(255, 255, 255, 0.2);
+  --jf-intro-skip-text: rgba(255, 255, 255, 0.94);
+}
+
+.skip-button-container.jf-abyss-skip-active {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  padding: 0 6rem !important;
+  box-sizing: border-box !important;
+}
+
+.skip-button.jf-abyss-skip-button {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+
+  min-height: 48px !important;
+  margin: 0 !important;
+  padding: 7px 16px 7px 8px !important;
+
+  color: var(--jf-intro-skip-text) !important;
+  background: var(--jf-intro-skip-bg) !important;
+  border: 1px solid var(--jf-intro-skip-border) !important;
+  border-radius: var(--jf-radius-pill, 999px) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34) !important;
+
+  font-size: 0.96rem !important;
+  font-weight: 650 !important;
+  letter-spacing: 0 !important;
+
+  backdrop-filter: blur(18px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(150%) !important;
+
+  transition:
+    opacity 180ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease !important;
+}
+
+.skip-button.jf-abyss-skip-button:hover,
+.skip-button.jf-abyss-skip-button:focus-visible {
+  color: #ffffff !important;
+  background: var(--jf-intro-skip-bg-hover) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  transform: translateY(-1px) !important;
+  outline: none !important;
+}
+
+.skip-button.jf-abyss-skip-button.hide {
+  display: none !important;
+}
+
+.skip-button.jf-abyss-skip-button > .material-icons {
+  font-size: 22px !important;
+}
+
+.jfIntroSkipCountdown {
+  --jf-intro-skip-progress: 0;
+
+  position: relative;
+  isolation: isolate;
+  flex: 0 0 34px;
+
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+
+  border-radius: 50%;
+  background: conic-gradient(
+    rgb(var(--abyss-accent, 245, 245, 247))
+      calc(var(--jf-intro-skip-progress) * 1turn),
+    var(--jf-intro-skip-muted) 0
+  );
+}
+
+.jfIntroSkipCountdown::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(20, 24, 28, 0.96);
+}
+
+.jfIntroSkipCountdownValue {
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.jfIntroAutoSkipToggle {
+  flex: 0 0 46px;
+
+  display: inline-grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  padding: 0;
+
+  color: rgba(255, 255, 255, 0.72);
+  background: var(--jf-intro-skip-bg);
+  border: 1px solid var(--jf-intro-skip-border);
+  border-radius: 50%;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.jfIntroAutoSkipToggle.is-hidden {
+  display: none !important;
+}
+
+.jfIntroAutoSkipToggle:hover,
+.jfIntroAutoSkipToggle:focus-visible {
+  color: #ffffff;
+  background: var(--jf-intro-skip-bg-hover);
+  border-color: rgba(255, 255, 255, 0.28);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.jfIntroAutoSkipToggle[aria-pressed="true"] {
+  color: rgba(15, 18, 22, 0.95);
+  background: rgb(var(--abyss-accent, 245, 245, 247));
+  border-color: transparent;
+}
+
+.jfIntroAutoSkipToggle .material-icons {
+  font-size: 22px !important;
+  pointer-events: none;
+}
+
+#jfIntroSkipUndo {
+  position: fixed;
+  left: 50%;
+  bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 20000;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 420px);
+  min-height: 46px;
+  padding: 7px 8px 7px 16px;
+
+  color: var(--jf-intro-skip-text);
+  background: rgba(20, 24, 28, 0.94);
+  border: 1px solid var(--jf-intro-skip-border);
+  border-radius: 8px;
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.42);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 10px);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+
+  transition:
+    opacity 160ms ease,
+    visibility 160ms ease,
+    transform 160ms ease;
+}
+
+#jfIntroSkipUndo.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.jfIntroSkipUndoText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.jfIntroSkipUndoButton {
+  flex: 0 0 34px;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+
+  color: rgba(15, 18, 22, 0.95);
+  background: rgb(var(--abyss-accent, 245, 245, 247));
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.jfIntroSkipUndoButton:hover,
+.jfIntroSkipUndoButton:focus-visible {
+  color: #000000;
+  background: #ffffff;
+  outline: none;
+}
+
+.jfIntroSkipUndoButton .material-icons {
+  font-size: 20px !important;
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .skip-button-container.jf-abyss-skip-active {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 8px !important;
+    padding: 0 1rem !important;
+  }
+
+  .skip-button.jf-abyss-skip-button {
+    min-height: 44px !important;
+    padding: 6px 13px 6px 7px !important;
+    font-size: 0.88rem !important;
+  }
+
+  .jfIntroSkipCountdown {
+    flex-basis: 31px;
+    width: 31px;
+    height: 31px;
+  }
+
+  .jfIntroAutoSkipToggle {
+    flex-basis: 42px;
+    width: 42px;
+    height: 42px;
+  }
+
+  #jfIntroSkipUndo {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-button.jf-abyss-skip-button,
+  .jfIntroAutoSkipToggle,
+  #jfIntroSkipUndo {
+    transition: none !important;
+  }
+}

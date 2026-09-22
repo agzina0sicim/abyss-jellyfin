@@ -114,7 +114,7 @@ The steps to apply Abyss entirely manually can be found in the detailed [SETUP](
 
 > Quick Preview: 
 > ```css
-> @import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');
+> @import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
 >```
 > Copy and Paste in the branding section in your jellyfin dashboard.
 
@@ -125,6 +125,65 @@ The steps to apply Abyss entirely manually can be found in the detailed [SETUP](
 
 If you use additional plugins, like *Jellyfin Enhanced*, *Media Bar Enhanced*, etc, then you can follow the [Plugin Support](SETUP.md) steps in the SETUP.md guide.
 
+### Abyss Customizer Integration
+
+This fork includes the customizer layer for setups that use **JS Injector**, **Media Bar Enhanced**, **Home Screen Sections**, **Intro Skipper**, and related Jellyfin UI plugins.
+
+Add this to **Dashboard > General > Branding > Custom CSS**:
+
+```css
+@import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
+```
+
+`abyss.css` preserves the same cascade as the previous standalone branding CSS:
+
+1. `styles/abyss-base.css` (the current upstream base theme)
+2. `styles/abyss-mbe.css`
+3. `jellyfin-icon-metadata` public icon styles
+4. `styles/abyss-customizer.css`
+5. `styles/abyss-intro-skipper.css`
+
+The customizer retains the original fork's legacy web-client DOM hooks. The
+upstream compatibility table below applies to the base theme; the customizer's
+navigation and detail-page integrations need separate verification in Jellyfin
+12's Modern interface.
+
+The **JavaScript Code** field in JS Injector expects JavaScript, not an HTML
+`<script>` tag. Paste the contents of
+`scripts/customizer/abyss-customizer-loader.js`, or use this loader directly:
+
+```js
+(function () {
+  "use strict";
+
+  const scriptId = "abyss-customizer-script";
+
+  if (document.getElementById(scriptId)) return;
+
+  const script = document.createElement("script");
+  script.id = scriptId;
+  script.src =
+    "https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/scripts/customizer/abyss-customizer.js";
+  script.async = false;
+
+  document.head.appendChild(script);
+})();
+```
+
+Alternatively, paste the complete contents of
+`scripts/customizer/abyss-customizer.js` into JS Injector. The CSS layer handles
+the visual treatment and static hide rules. The JavaScript layer creates the
+floating navigation, dynamic library menu, profile mirror, season dropdown,
+player-state fixes, and route-aware cleanup.
+
+The Intro Skipper integration styles Jellyfin's native media-segment prompt,
+adds an optional four-second auto-skip countdown, and offers a short undo action
+after a manual or automatic skip. Auto-skip is disabled by default and stored
+locally per Jellyfin user. Jellyfin's own media-segment settings remain
+unchanged. Set Jellyfin's Intro action to **Ask to Skip** to use the Abyss
+countdown. With Jellyfin's **Skip** action, Jellyfin skips immediately and does
+not render a prompt for the theme to extend.
+
 <details>
 
 <summary><h2>Customisation</h2></summary>
@@ -132,7 +191,7 @@ If you use additional plugins, like *Jellyfin Enhanced*, *Media Bar Enhanced*, e
 Override any of these variables at the top of your **Custom CSS** field, after the `@import` line:
 
 ```css
-@import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');
+@import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
 
 :root {
     /* Accent colour: R, G, B only, no rgb() wrapper */
@@ -163,8 +222,8 @@ Override any of these variables at the top of your **Custom CSS** field, after t
 For lower-power mobile, TV, and embedded clients, import the optional Lite override after the main theme:
 
 ```css
-@import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');
-@import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/styles/abyss-lite.css');
+@import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
+@import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/styles/abyss-lite.css');
 ```
 
 Lite mode keeps the same colours, typography, spacing, and component styling while reducing blur, shadows, and entrance motion.
@@ -173,7 +232,7 @@ Lite mode keeps the same colours, typography, spacing, and component styling whi
 > 
 > You can also change the font by adding a *Google Fonts* (or any other source) `@import` and overriding the `body` font-family after your theme import. For example, to use [Inter](https://fonts.google.com/specimen/Inter):
 > ```css
-> @import url('https://cdn.jsdelivr.net/gh/AumGupta/abyss-jellyfin@main/abyss.css');
+> @import url('https://cdn.jsdelivr.net/gh/agzina0sicim/abyss-jellyfin@main/abyss.css');
 > @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 >
 > body {
